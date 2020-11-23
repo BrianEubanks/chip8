@@ -17,7 +17,7 @@ class chip8:
     #Initialize Chip8
     def __init__(self, f):
         
-        self.romfile=""
+        self.romfile=f
         #Main Memory
         self.MM = np.empty(4096, dtype=np.uint8)
         for i in range(4096):
@@ -37,13 +37,13 @@ class chip8:
         self.DT = 0
         self.ST = 0
 
-        #self.scr=d.screen()
+        self.scr=d.C8screen()
         self.open()
         
 
     #Load RomFile to memory at Address 0x200
     def open(self):
-        with open(romfile,"r") as f:
+        with open(self.romfile,"r") as f:
         #Read Rom File
         #Flip to Big Endian
             word = np.fromfile(f,dtype=np.uint8).newbyteorder()
@@ -53,6 +53,21 @@ class chip8:
             self.MM[a+0x200] = word[a]
             a+=1
 
+
+    #Fetch next instruction at PC
+    #Increment Program Counter
+    #Returns the instruction
+    def fetch(self):
+    
+        instruction=self.MM[self.PC]<<8
+        self.PC+=1
+        instruction+=self.MM[self.PC]
+        self.PC+=1
+
+        #print(format(c8.PC-2,'03x')+": "+format(instruction,'04x'))
+        return instruction
+        
+        
 
     #Do this better Maybe
     #Get each bit from the sprite byte and store in a list
@@ -68,117 +83,129 @@ class chip8:
 
 
 
+    def tick(self):
 
-print(sys.argv)
-print(len(sys.argv))
-
-
-
-
-#Check File Arguments for RomFile
-
-romfile = "ibmlogo.ch8"
-
-c8 = chip8(romfile)
-scr = d.C8screen()
+        #Fetch Instruction
+        #Increment PC
+        instruction = self.fetch()
 
 
-while True:
-
-    scr.updScr()
-
-    #Fetch
-    instruction=c8.MM[c8.PC]<<8
-    c8.PC+=1
-    instruction+=c8.MM[c8.PC]
-    c8.PC+=1
-
-    print(format(c8.PC-2,'03x')+": "+format(instruction,'04x'))
+        #Decode & Execute
+    
+        # 0xGHJK
+        # 0x-NNN
+        # 0x--NN
     
 
-    # 0xGHJK
-    # 0x-NNN
-    # 0x--NN
-    
+        G = (instruction >> 12) % 0x10
+        H = (instruction >> 8) % 0x10
+        J = (instruction >> 4) % 0x10
+        K = instruction % 0x10
 
-    G = (instruction >> 12) % 0x10
-    H = (instruction >> 8) % 0x10
-    J = (instruction >> 4) % 0x10
-    K = instruction % 0x10
-
-    NN = instruction % 0x100
-    NNN= instruction % 0x1000
+        NN = instruction % 0x100
+        NNN= instruction % 0x1000
     
-    #print("Format: "+format(G,'01x')+format(H,'01x')+format(J,'01x')+format(K,'01x'))
-    #print("Format: "+format(NNN,'03x')+" - " +format(NN,'02x'))
+        #print("Format: "+format(G,'01x')+format(H,'01x')+format(J,'01x')+format(K,'01x'))
+        #print("Format: "+format(NNN,'03x')+" - " +format(NN,'02x'))
 
     
+        #00E0
+        #CLS
+        if(instruction == 0x00E0):
+            self.scr.cls()
 
-    #change to switch
-    #00E0
-    #CLS
-    if(instruction == 0x00E0):
-        #w.create_rectangle(0,0,640,320, fill="black")
-        #for x in range(scr.XSize):
-        #    for y in range(scr.YSize):
-        #        scr.ScrDAT[x][y]=0
+
+        #1NNN
+        #JMP NNN
+        elif(G==1):
+            self.PC=NNN
+
+
+        #2NNN
+        #Call NNN
+        elif (G==2):
+            self.stack[SP]=PC
+            self.SP+=1
+            self.PC=NNN
+
+
+        #00EE
+        #RET
+        elif (instruction == 0x00EE):
+            self.SP-=1
+            self.PC=self.stack[SP]
+    
+            #print(format(instruction,'04x'))
+
+
+        #6XNN
+        #Load x, NN
+        elif(G==6):
+            self.V[H]=NN
+
+
+        #7XNN
+        #Add x, NN
+        elif(G==7):
+            self.V[H]+=NN
+
+
+        #ANNN
+        #Ld I, NNN
+        elif(G==0xA):
+            self.I=NNN
+
+
+        #DXYN
+        #Display
+        elif(G==0xD):
+
+            #Get XY Coords
+            xcoord = self.V[H]%64
+            ycoord = self.V[J]%64
+        
+            #Get Sprite Data from pixels
+            sprite = []
+            for n in range(K):
+                sprite.append(self.byteConvert(self.MM[self.I+n]))
+
+            self.V[0xF]=self.scr.drawSprite(xcoord,ycoord,sprite,K)
+
+
+        
+
+    #Delay
+    #sleep(.010)
+
+    #Try to updateScreen
+    #If the window is closed exit
+        return self.scr.updScr()
+    
+   
+
+
+
+def main(argv):
+    #print(argv[0])
+    #Try to load file from argument
+    #It not found use ibmlogo
+    romfile = "ibmlogo.ch8"
+    if (len(argv)>0):
+        if(path.exists(argv[0])):
+            romfile = argv[0]
+        
+    c8 = chip8(romfile)
+
+
+    while c8.tick():
+        #c8.scr.updScr()
+        #print(c8.PC)
         pass
-    #1NNN
-    #JMP NNN
-    elif(G==1):
-        c8.PC=NNN
-    #2NNN
-    #Call NNN
-    elif (G==2):
-        c8.stack[SP]=PC
-        c8.SP+=1
-        c8.PC=NNN
-    #00EE
-    #RET
-    elif (instruction == 0x00EE):
-        c8.PC=c8.stack[SP]
-        c8.SP-=1
     
-        print(format(instruction,'04x'))
-
-    #6XNN
-    #Load x, NN
-    elif(G==6):
-        c8.V[H]=NN
-
-    #7XNN
-    #Add x, NN
-    elif(G==7):
-        c8.V[H]+=NN
-
-    #ANNN
-    #Ld I, NNN
-    elif(G==0xA):
-        I=NNN
-
-    #DXYN
-    #Display
-    elif(G==0xD):
-
-        #Get XY Coords
-        xcoord = c8.V[H]%64
-        ycoord = c8.V[J]%64
-        
-        #Get Sprite Data from pixels
-        sprite = []
-        for n in range(K):
-            sprite.append(c8.byteConvert(c8.MM[I+n]))
-
-        c8.V[0xF]=scr.drawSprite(xcoord,ycoord,sprite,K)
         
 
-    
-    sleep(.016)
-    
-
-
-
-
+if __name__ == "__main__":
+    main(sys.argv[1:])
 
                 
     

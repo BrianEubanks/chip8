@@ -9,13 +9,16 @@ from tkinter import *
 
 class C8screen:
 
-
+    def on_closing(self):
+        self.WindowActive=False
+        self.window.destroy()
 
 
     def __init__(self):
 
         #Create Window & Canvas
         self.window = tk.Tk()
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
         self.window.title("CHIP8")
         self.window.resizable(False,False)
         self.w = Canvas(self.window, width=640, height=320, bg="black")
@@ -23,6 +26,8 @@ class C8screen:
     
         self.XSize=64
         self.YSize=32
+
+        self.WindowActive = True
     
         self.ScrBUF=[[0]*self.YSize for _ in range(self.XSize)]
         self.ScrDAT=[[0]*self.YSize for _ in range(self.XSize)]
@@ -35,15 +40,24 @@ class C8screen:
                 self.ScrDAT[x][y]=x*y
 
 
+    #Update Screen
+    #Called Once per Cycle
     def updScr(self):
-        self.window.update()
+        if(self.WindowActive):
+            self.window.update()
+        return self.WindowActive
 
 
+    #Clear Screen
+    #Called from Clear Screen instruction
+    def cls(self):
+        for x in range(self.XSize):
+            for y in range(self.YSize):
+                self.w.itemconfig(self.ScrBUF[x][y], fill='black')
 
 
-
-
-
+    #Draw Sprite Instruction.
+    #Draw One Sprite Per Cycle
     #Draw Sprite S[K][8] to (X,Y)
     #Sprite Size is K bytes long - Height of sprite
     #Return Flag register VF
